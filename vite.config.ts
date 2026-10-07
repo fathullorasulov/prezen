@@ -5,10 +5,29 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // Relative base path ensures the site works automatically on GitHub Pages
+    // (both username.github.io and username.github.io/repo-name/)
+    base: './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+      },
+    },
+    build: {
+      target: 'es2022',
+      cssMinify: true,
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) {
+              return 'motion';
+            }
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'vendor';
+            }
+          },
+        },
       },
     },
     server: {

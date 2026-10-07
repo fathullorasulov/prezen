@@ -15,6 +15,9 @@ import {
   X,
   ArrowUpRight,
   Layers,
+  Share2,
+  Check,
+  Copy,
 } from 'lucide-react';
 import {
   SLIDES_DATA,
@@ -55,6 +58,8 @@ export default function App() {
 
   const [showSpeakerNotes, setShowSpeakerNotes] = useState<boolean>(true);
   const [showPlanDrawer, setShowPlanDrawer] = useState<boolean>(false);
+  const [showShareModal, setShowShareModal] = useState<boolean>(false);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isAutoPlaying, setIsAutoPlaying] = useState<boolean>(false);
   const [hoveredNodeIndex, setHoveredNodeIndex] = useState<number | null>(null);
 
@@ -86,6 +91,31 @@ export default function App() {
     window.addEventListener('resize', updateSize);
     return () => window.removeEventListener('resize', updateSize);
   }, []);
+
+  // Read initial slide from URL hash (e.g. #slide-5) so shared links open directly on that slide
+  useEffect(() => {
+    const hash = window.location.hash;
+    const match = hash.match(/^#slide-(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num >= 1 && num <= SLIDES_DATA.length) {
+        setActiveSlideIndex(num - 1);
+      }
+    }
+  }, []);
+
+  // Keep URL hash in sync with active slide for instant sharing
+  useEffect(() => {
+    if (activeSlideIndex === null) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    } else {
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${window.location.search}#slide-${activeSlideIndex + 1}`
+      );
+    }
+  }, [activeSlideIndex]);
 
   const clearSwoopTimer = () => {
     if (swoopTimeoutRef.current) {
@@ -908,6 +938,9 @@ export default function App() {
                             <img
                               src={slide.imageUrl}
                               alt={slide.title}
+                              loading={index === 0 ? 'eager' : 'lazy'}
+                              decoding="async"
+                              fetchPriority={index === 0 ? 'high' : 'low'}
                               referrerPolicy="no-referrer"
                               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                               onError={(e) => {
@@ -1155,6 +1188,113 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Share & GitHub Pages Link Modal */}
+        <AnimatePresence>
+          {showShareModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowShareModal(false)}
+              className="absolute inset-0 z-40 bg-black/75 backdrop-blur-sm flex items-center justify-center p-6"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="max-w-lg w-full bg-[#0B1120] border border-slate-700 rounded-2xl p-6 shadow-2xl"
+              >
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
+                  <div>
+                    <h3 className="text-xl font-bold text-white font-display">
+                      Ссылка на презентацию и публикация в GitHub
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Поделитесь текущим слайдом или опубликуйте на GitHub Pages
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowShareModal(false)}
+                    className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                      Прямая ссылка на текущий вид:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={typeof window !== 'undefined' ? window.location.href : ''}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono-num text-slate-200 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            navigator.clipboard.writeText(window.location.href);
+                            setCopiedLink(true);
+                            setTimeout(() => setCopiedLink(false), 2000);
+                          }
+                        }}
+                        className="px-3.5 py-2 bg-[#1D4ED8] hover:bg-[#2563EB] text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
+                      >
+                        {copiedLink ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Скопировано</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Копировать</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-2.5">
+                    <div className="text-xs font-semibold text-white">
+                      Как получить постоянную ссылку на GitHub Pages:
+                    </div>
+                    <ol className="text-xs text-slate-300 space-y-1.5 list-decimal list-inside leading-relaxed">
+                      <li>
+                        Загрузите этот проект в свой репозиторий на GitHub (файл автоматической
+                        публикации <code className="text-[#60A5FA]">.github/workflows/deploy.yml</code> уже встроен).
+                      </li>
+                      <li>
+                        В репозитории откройте <strong>Settings → Pages</strong> и в поле{' '}
+                        <strong>Source</strong> выберите <strong>GitHub Actions</strong>.
+                      </li>
+                      <li>
+                        Через 40 секунд ваша презентация будет доступна по ссылке:
+                        <div className="mt-1 px-2.5 py-1.5 bg-slate-950 rounded border border-slate-800 font-mono-num text-[11px] text-[#60A5FA]">
+                          https://&lt;ваш-логин&gt;.github.io/&lt;имя-репозитория&gt;/
+                        </div>
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="mt-5 pt-3.5 border-t border-slate-800 flex justify-end">
+                  <button
+                    onClick={() => setShowShareModal(false)}
+                    className="px-4 py-2 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Готово
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* Bottom Interactive Timeline & Prezi Playback Control Dock */}
@@ -1236,7 +1376,7 @@ export default function App() {
             })}
           </div>
 
-          {/* Right: Speaker Script Toggle */}
+          {/* Right: Speaker Script Toggle & Share Link Button */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowSpeakerNotes((s) => !s)}
@@ -1248,6 +1388,14 @@ export default function App() {
             >
               <Mic className="w-3.5 h-3.5 text-[#60A5FA]" />
               <span>Речь спикера: {showSpeakerNotes ? 'Вкл' : 'Выкл'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-200 border border-slate-700 hover:border-slate-500 hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Share2 className="w-3.5 h-3.5 text-[#60A5FA]" />
+              <span>Ссылка / GitHub</span>
             </button>
           </div>
         </div>
